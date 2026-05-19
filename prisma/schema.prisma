@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CANDIDATE
+}
+
+enum CandidateStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT_ANSWER
+  CODING
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+  EXPIRED
+  DISQUALIFIED
+}
+
+enum ResultStatus {
+  PENDING_REVIEW
+  PASSED
+  FAILED
+  DISQUALIFIED
+}
+
+enum ProctoringEventType {
+  TAB_SWITCH
+  WINDOW_BLUR
+  FULLSCREEN_EXIT
+  COPY
+  PASTE
+  RIGHT_CLICK
+  REFRESH_NAVIGATION
+  INACTIVITY
+  WARNING
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(CANDIDATE)
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  lastUserAgent String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  candidate     Candidate?
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Candidate {
+  id          String          @id @default(cuid())
+  userId      String?         @unique
+  name        String
+  email       String          @unique
+  phone       String?
+  college     String?
+  roleApplied String?         @map("role_applied")
+  status      CandidateStatus @default(ACTIVE)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User?            @relation(fields: [userId], references: [id])
+  assignments ExamAssignment[]
+  attempts    ExamAttempt[]
+
+  @@index([email])
+  @@map("candidates")
+}
+
+model Exam {
+  id                         String           @id @default(cuid())
+  title                      String
+  description                String?          @db.Text
+  durationMinutes            Int              @map("duration_minutes")
+  totalMarks                 Float            @default(0) @map("total_marks")
+  passingMarks               Float            @default(0) @map("passing_marks")
+  startTime                  DateTime?        @map("start_time")
+  endTime                    DateTime?        @map("end_time")
+  maxAttempts                Int              @default(1) @map("max_attempts")
+  negativeMarkingEnabled     Boolean          @default(false) @map("negative_marking_enabled")
+  negativeMarks              Float            @default(0) @map("negative_marks")
+  randomQuestionOrderEnabled Boolean          @default(true) @map("random_question_order_enabled")
+  shuffleOptionsEnabled      Boolean          @default(true) @map("shuffle_options_enabled")
+  assignToAllCandidates      Boolean          @default(false) @map("assign_to_all_candidates")
+  suspiciousThreshold        Int              @default(6) @map("suspicious_threshold")
+  showResultToCandidate      Boolean          @default(false) @map("show_result_to_candidate")
+  status                     ExamStatus       @default(DRAFT)
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+
+  questions                  ExamQuestion[]
+  assignments                ExamAssignment[]
+  attempts                   ExamAttempt[]
+
+  @@map("exams")
+}
+
+model Question {
+  id            String           @id @default(cuid())
+  type          QuestionType
+  category      String
+  difficulty    Difficulty       @default(EASY)
+  questionText  String           @db.Text @map("question_text")
+  correctAnswer String?          @db.Text @map("correct_answer")
+  marks         Float            @default(1)
+  explanation   String?          @db.Text
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  options       QuestionOption[]
+  exams         ExamQuestion[]
+  answers       CandidateAnswer[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String   @map("question_id")
+  label      String
+  value      String   @db.Text
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  sortOrder  Int      @default(0) @map("sort_order")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers  CandidateAnswer[]
+
+  @@map("question_options")
+}
+
+model ExamQuestion {
+  id         String @id @default(cuid())
+  examId     String @map("exam_id")
+  questionId String @map("question_id")
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  exam     Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionId])
+  @@map("exam_questions")
+}
+
+model ExamAssignment {
+  id          String   @id @default(cuid())
+  examId      String   @map("exam_id")
+  candidateId String   @map("candidate_id")
+  createdAt   DateTime @default(now())
+
+  exam      Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, candidateId])
+  @@map("exam_assignments")
+}
+
+model ExamAttempt {
+  id                    String             @id @default(cuid())
+  examId                String             @map("exam_id")
+  candidateId           String             @map("candidate_id")
+  startTime             DateTime           @map("start_time")
+  endTime               DateTime           @map("end_time")
+  submitTime            DateTime?          @map("submit_time")
+  status                AttemptStatus      @default(IN_PROGRESS)
+  ipAddress             String?            @map("ip_address")
+  userAgent             String?            @map("user_agent")
+  questionOrder         Json?              @map("question_order")
+  warningCount          Int                @default(0) @map("warning_count")
+  suspiciousEventCount  Int                @default(0) @map("suspicious_event_count")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  exam                  Exam               @relation(fields: [examId], references: [id], onDelete: Cascade)
+  candidate             Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  answers               CandidateAnswer[]
+  proctoringEvents      ProctoringEvent[]
+  result                Result?
+
+  @@index([examId, candidateId])
+  @@map("exam_attempts")
+}
+
+model CandidateAnswer {
+  id              String   @id @default(cuid())
+  attemptId       String   @map("attempt_id")
+  questionId      String   @map("question_id")
+  selectedOptionId String? @map("selected_option_id")
+  answerText      String?  @db.Text @map("answer_text")
+  isCorrect       Boolean? @map("is_correct")
+  marksAwarded    Float    @default(0) @map("marks_awarded")
+  markedForReview Boolean  @default(false) @map("marked_for_review")
+  reviewedByAdmin Boolean  @default(false) @map("reviewed_by_admin")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  attempt        ExamAttempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question       Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption QuestionOption? @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@map("candidate_answers")
+}
+
+model ProctoringEvent {
+  id         String               @id @default(cuid())
+  attemptId  String               @map("attempt_id")
+  eventType  ProctoringEventType  @map("event_type")
+  metadata   Json?
+  createdAt  DateTime             @default(now())
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, eventType])
+  @@map("proctoring_events")
+}
+
+model Result {
+  id                  String       @id @default(cuid())
+  attemptId           String       @unique @map("attempt_id")
+  score               Float        @default(0)
+  percentage          Float        @default(0)
+  status              ResultStatus @default(PENDING_REVIEW)
+  correctCount        Int          @default(0) @map("correct_count")
+  wrongCount          Int          @default(0) @map("wrong_count")
+  unansweredCount     Int          @default(0) @map("unanswered_count")
+  subjectivePending   Boolean      @default(false) @map("subjective_pending")
+  rank                Int?
+  remarks             String?      @db.Text
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@map("results")
+}
+
+model Setting {
+  id                           String   @id @default(cuid())
+  companyName                  String   @default("HCA Automation") @map("company_name")
+  logoUrl                      String?  @map("logo_url")
+  examRules                    String   @db.Text @default("Do not switch tabs, refresh, copy, paste, or leave fullscreen during the exam.") @map("exam_rules")
+  suspiciousActivityThreshold  Int      @default(6) @map("suspicious_activity_threshold")
+  showResultToCandidateDefault Boolean  @default(false) @map("show_result_to_candidate_default")
+  emailNotificationsEnabled    Boolean  @default(false) @map("email_notifications_enabled")
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  action    String
+  entity    String?
+  entityId  String?  @map("entity_id")
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([action, entity])
+  @@map("audit_logs")
+}
