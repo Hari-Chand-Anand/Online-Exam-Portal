@@ -14,7 +14,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "latest",
+    "@auth/prisma-adapter": "2.10.0",
     "@prisma/client": "6.15.0",
     "@radix-ui/react-avatar": "latest",
     "@radix-ui/react-dialog": "latest",

@@ -24,10 +24,11 @@ export default async function CandidateDashboardPage() {
           const latest = exam.attempts[0];
           const expired = exam.endTime && now > exam.endTime;
           const notStarted = exam.startTime && now < exam.startTime;
-          const status = latest?.status || (expired ? "EXPIRED" : notStarted ? "NOT_STARTED" : "AVAILABLE");
+          const status: string = latest?.status || (expired ? "EXPIRED" : notStarted ? "NOT_STARTED" : "AVAILABLE");
           return <Card key={exam.id} className="bg-white/80"><CardHeader><div className="flex items-center justify-between"><CardTitle>{exam.title}</CardTitle><Badge variant={status === "AVAILABLE" ? "success" : "secondary"}>{status}</Badge></div></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">{exam.description}</p><div className="grid grid-cols-2 gap-3 text-sm"><p>Duration: {exam.durationMinutes} min</p><p>Marks: {exam.totalMarks}</p><p>Start: {formatDateTime(exam.startTime)}</p><p>End: {formatDateTime(exam.endTime)}</p><p>Questions: {exam._count.questions}</p><p>Attempts: {exam.attempts.length}/{exam.maxAttempts}</p></div>{latest?.result ? <Button asChild variant="outline"><Link href="/candidate/results">View Submission</Link></Button> : <Button asChild disabled={Boolean(expired || notStarted)}><Link href={`/candidate/exams/${exam.id}/instructions`}>Start Instructions</Link></Button>}</CardContent></Card>;
         })}
       </div>
     </main>
   );
 }
+

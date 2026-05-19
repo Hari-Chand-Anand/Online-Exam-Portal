@@ -49,5 +49,6 @@ export const saveAnswerSchema = z.object({
 export const proctoringEventSchema = z.object({
   attemptId: z.string().min(1),
   eventType: z.enum(["TAB_SWITCH", "WINDOW_BLUR", "FULLSCREEN_EXIT", "COPY", "PASTE", "RIGHT_CLICK", "REFRESH_NAVIGATION", "INACTIVITY", "WARNING"]),
-  metadata: z.record(z.unknown()).optional()
+  metadata: z.record(z.string(), z.unknown()).optional()
 });
+
