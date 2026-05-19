@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { Topbar } from "@/components/topbar";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,3 +51,4 @@ export default async function AdminDashboardPage() {
     </>
   );
 }
+

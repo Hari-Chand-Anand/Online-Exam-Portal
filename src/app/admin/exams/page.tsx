@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { Topbar } from "@/components/topbar";
 import { Badge } from "@/components/ui/badge";
@@ -26,3 +27,4 @@ export default async function ExamsPage() {
     </>
   );
 }
+

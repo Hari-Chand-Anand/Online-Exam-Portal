@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { Badge } from "@/components/ui/badge";
@@ -31,4 +32,5 @@ export default async function CandidateDashboardPage() {
     </main>
   );
 }
+
 
