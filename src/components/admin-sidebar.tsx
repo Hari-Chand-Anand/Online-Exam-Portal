@@ -17,7 +17,7 @@ export function AdminSidebar() {
       <Link href="/admin/dashboard" className="mb-8 flex items-center gap-3">
         <div className="rounded-2xl bg-slate-950 p-2 text-white"><GraduationCap className="h-5 w-5" /></div>
         <div>
-          <p className="font-semibold">Intern Exam Portal</p>
+          <p className="font-semibold">HCA Exam Portal</p>
           <p className="text-xs text-muted-foreground">Admin Console</p>
         </div>
       </Link>

@@ -9,7 +9,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-white/90 shadow-xl backdrop-blur">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 rounded-2xl bg-slate-950 p-3 text-white"><GraduationCap className="h-7 w-7" /></div>
-          <CardTitle className="text-2xl">Intern Exam Portal</CardTitle>
+          <CardTitle className="text-2xl">HCA Exam Portal</CardTitle>
           <CardDescription>Login with your approved Google account.</CardDescription>
         </CardHeader>
         <CardContent>
