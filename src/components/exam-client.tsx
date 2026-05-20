@@ -443,10 +443,10 @@ export function ExamClient({
           </div>
 
           <div className="mt-6 space-y-2 text-xs text-white/70">
-            <p>• Green border: answered</p>
-            <p>• Amber border: marked for review</p>
-            <p>• Manual submit requires all questions attempted.</p>
-            <p>• Auto-submit happens at timer end.</p>
+            <p>ï¿½ Green border: answered</p>
+            <p>ï¿½ Amber border: marked for review</p>
+            <p>ï¿½ Manual submit requires all questions attempted.</p>
+            <p>ï¿½ Auto-submit happens at timer end.</p>
           </div>
         </aside>
       </main>
