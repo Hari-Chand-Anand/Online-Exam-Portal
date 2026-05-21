@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Trash2, Download, Upload, Plus } from "lucide-react";
+import { Trash2, Download, Upload, Plus, Pencil } from "lucide-react";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ async function deleteQuestion(formData: FormData) {
   });
 
   revalidatePath("/admin/questions");
+  revalidatePath("/admin/exams");
 }
 
 function badgeClass(type: "category" | "difficulty" | "questionType" | "marks") {
@@ -27,7 +28,7 @@ function badgeClass(type: "category" | "difficulty" | "questionType" | "marks") 
     marks: "bg-emerald-50 text-emerald-700 border-emerald-100",
   };
 
-  return `inline-flex items-center rounded-md border px-3 py-1 text-xs font-medium ${map[type]}`;
+  return `inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${map[type]}`;
 }
 
 export default async function QuestionsPage() {
@@ -35,7 +36,7 @@ export default async function QuestionsPage() {
     orderBy: { createdAt: "desc" },
     include: {
       options: {
-        orderBy: { label: "asc" },
+        orderBy: { sortOrder: "asc" },
       },
     },
   });
@@ -117,6 +118,7 @@ export default async function QuestionsPage() {
                     <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
                       {question.options.map((option) => {
                         const isCorrect =
+                          option.isCorrect ||
                           option.label === question.correctAnswer;
 
                         return (
@@ -136,24 +138,33 @@ export default async function QuestionsPage() {
                     </div>
                   )}
 
-                  {!question.options.length && question.correctAnswer && (
+                  {question.options.length === 0 && question.correctAnswer && (
                     <p className="mt-3 text-sm text-emerald-700">
                       Correct Answer: {question.correctAnswer}
                     </p>
                   )}
                 </div>
 
-                <form action={deleteQuestion}>
-                  <input type="hidden" name="id" value={question.id} />
-                  <Button
-                    type="submit"
-                    variant="ghost"
-                    size="icon"
-                    className="text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild variant="outline">
+                    <Link href={`/admin/questions/${question.id}/edit`}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </Link>
                   </Button>
-                </form>
+
+                  <form action={deleteQuestion}>
+                    <input type="hidden" name="id" value={question.id} />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  </form>
+                </div>
               </div>
             </Card>
           ))
