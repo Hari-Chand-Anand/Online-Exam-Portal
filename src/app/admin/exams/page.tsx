@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DeleteExamButton } from "@/components/delete-exam-button";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,68 @@ function formatDate(date: Date | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+async function deleteExam(formData: FormData) {
+  "use server";
+
+  const examId = String(formData.get("examId"));
+
+  await prisma.$transaction(async (tx) => {
+    const attempts = await tx.examAttempt.findMany({
+      where: { examId },
+      select: { id: true },
+    });
+
+    const attemptIds = attempts.map((attempt) => attempt.id);
+
+    if (attemptIds.length > 0) {
+      await tx.result.deleteMany({
+        where: {
+          attemptId: {
+            in: attemptIds,
+          },
+        },
+      });
+
+      await tx.candidateAnswer.deleteMany({
+        where: {
+          attemptId: {
+            in: attemptIds,
+          },
+        },
+      });
+
+      await tx.proctoringEvent.deleteMany({
+        where: {
+          attemptId: {
+            in: attemptIds,
+          },
+        },
+      });
+    }
+
+    await tx.examAttempt.deleteMany({
+      where: { examId },
+    });
+
+    await tx.examAssignment.deleteMany({
+      where: { examId },
+    });
+
+    await tx.examQuestion.deleteMany({
+      where: { examId },
+    });
+
+    await tx.exam.delete({
+      where: { id: examId },
+    });
+  });
+
+  revalidatePath("/admin/exams");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/results");
+  revalidatePath("/admin/proctoring");
 }
 
 export default async function ExamsPage() {
@@ -31,7 +95,7 @@ export default async function ExamsPage() {
             Exam Management
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Create, publish, and manage intern exams.
+            Create, publish, manage, edit, and delete intern exams.
           </p>
         </div>
 
@@ -85,13 +149,20 @@ export default async function ExamsPage() {
                     </div>
 
                     <p className="mt-3 text-sm text-slate-500">
-                      {formatDate(exam.startTime)} → {formatDate(exam.endTime)}
+                      {formatDate(exam.startTime)} - {formatDate(exam.endTime)}
                     </p>
                   </div>
 
-                  <Button asChild variant="outline">
-                    <Link href={`/admin/exams/${exam.id}/edit`}>Edit</Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                      <Link href={`/admin/exams/${exam.id}/edit`}>Edit</Link>
+                    </Button>
+
+                    <form action={deleteExam}>
+                      <input type="hidden" name="examId" value={exam.id} />
+                      <DeleteExamButton title={exam.title} />
+                    </form>
+                  </div>
                 </div>
               </div>
             ))
