@@ -97,21 +97,20 @@ async function deleteCandidate(formData: FormData) {
 
       await tx.proctoringEvent.deleteMany({
         where: {
-          OR: [
-            { candidateId },
-            {
-              attemptId: {
-                in: attemptIds,
-              },
-            },
-          ],
+          attemptId: {
+            in: attemptIds,
+          },
+        },
+      });
+
+      await tx.examAttempt.deleteMany({
+        where: {
+          id: {
+            in: attemptIds,
+          },
         },
       });
     }
-
-    await tx.examAttempt.deleteMany({
-      where: { candidateId },
-    });
 
     await tx.examAssignment.deleteMany({
       where: { candidateId },
