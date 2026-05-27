@@ -30,7 +30,7 @@ function isAnswered(answer?: ExistingAnswerDto) {
 
   return Boolean(
     answer.selectedOptionId ||
-    (answer.answerText && answer.answerText.trim().length > 0)
+      (answer.answerText && answer.answerText.trim().length > 0)
   );
 }
 
@@ -55,7 +55,7 @@ export function ExamClient({
 
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, ExistingAnswerDto>>(() =>
-    Object.fromEntries(existingAnswers.map((a) => [a.questionId, a]))
+    Object.fromEntries(existingAnswers.map((answer) => [answer.questionId, answer]))
   );
   const [remainingMs, setRemainingMs] = useState(
     () => new Date(endTime).getTime() - new Date(serverNow).getTime()
@@ -65,24 +65,65 @@ export function ExamClient({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const submittedRef = useRef(false);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const question = questions[current];
 
   const answeredCount = useMemo(() => {
-    return questions.filter((q) => isAnswered(answers[q.id])).length;
+    return questions.filter((item) => isAnswered(answers[item.id])).length;
   }, [answers, questions]);
 
   const unansweredQuestions = useMemo(() => {
     return questions
-      .map((q, index) => ({
-        questionId: q.id,
+      .map((item, index) => ({
+        questionId: item.id,
         questionNo: index + 1,
-        answered: isAnswered(answers[q.id]),
+        answered: isAnswered(answers[item.id]),
       }))
       .filter((item) => !item.answered);
   }, [answers, questions]);
 
   const allQuestionsAnswered = unansweredQuestions.length === 0;
+
+  const saveAnswerToServer = useCallback(
+    async (next: ExistingAnswerDto) => {
+      setSaving(true);
+
+      await fetch("/api/candidate/attempts/save-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attemptId, ...next }),
+      });
+
+      setSaving(false);
+    },
+    [attemptId]
+  );
+
+  const saveAnswer = useCallback(
+    async (next: ExistingAnswerDto) => {
+      setSubmitError(null);
+      setAnswers((old) => ({ ...old, [next.questionId]: next }));
+      await saveAnswerToServer(next);
+    },
+    [saveAnswerToServer]
+  );
+
+  const saveTextAnswer = useCallback(
+    (next: ExistingAnswerDto) => {
+      setSubmitError(null);
+      setAnswers((old) => ({ ...old, [next.questionId]: next }));
+
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+
+      saveTimerRef.current = setTimeout(() => {
+        saveAnswerToServer(next);
+      }, 500);
+    },
+    [saveAnswerToServer]
+  );
 
   const submit = useCallback(async () => {
     if (submittedRef.current) return;
@@ -147,7 +188,7 @@ export function ExamClient({
 
   const logEvent = useCallback(
     async (eventType: string, metadata: Record<string, unknown> = {}) => {
-      setWarnings((w) => w + 1);
+      setWarnings((old) => old + 1);
 
       const res = await fetch("/api/candidate/proctoring", {
         method: "POST",
@@ -198,11 +239,10 @@ export function ExamClient({
       }
     };
 
-    const prevent =
-      (type: "COPY" | "PASTE" | "RIGHT_CLICK") => (event: Event) => {
-        event.preventDefault();
-        logEvent(type);
-      };
+    const prevent = (type: "COPY" | "PASTE" | "RIGHT_CLICK") => (event: Event) => {
+      event.preventDefault();
+      logEvent(type);
+    };
 
     const onCopy = prevent("COPY");
     const onPaste = prevent("PASTE");
@@ -233,26 +273,37 @@ export function ExamClient({
     };
   }, [logEvent]);
 
-  async function saveAnswer(next: ExistingAnswerDto) {
-    setSubmitError(null);
-    setAnswers((old) => ({ ...old, [next.questionId]: next }));
-    setSaving(true);
-
-    await fetch("/api/candidate/attempts/save-answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attemptId, ...next }),
-    });
-
-    setSaving(false);
+  if (!question) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
+        <Card className="max-w-lg bg-white p-8 text-center text-slate-950">
+          <h1 className="text-xl font-semibold">No questions assigned</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            This exam has no questions assigned. Please contact admin.
+          </p>
+          <Button
+            className="mt-5"
+            onClick={() => router.replace("/candidate/dashboard")}
+          >
+            Back to Dashboard
+          </Button>
+        </Card>
+      </main>
+    );
   }
 
   const minutes = Math.max(0, Math.floor(remainingMs / 60000));
   const seconds = Math.max(0, Math.floor((remainingMs % 60000) / 1000));
+
   const currentAnswer = answers[question.id] || {
     questionId: question.id,
     markedForReview: false,
+    selectedOptionId: null,
+    answerText: "",
   };
+
+  const isTheoryQuestion =
+    question.type === "SHORT_ANSWER" || question.type === "CODING";
 
   return (
     <div className="exam-secure-area min-h-screen bg-slate-950 text-white">
@@ -298,6 +349,7 @@ export function ExamClient({
               <Badge variant="secondary">{question.category}</Badge>
               <Badge variant="outline">{question.difficulty}</Badge>
               <Badge>{question.marks} marks</Badge>
+              <Badge variant="outline">{question.type}</Badge>
 
               {saving ? (
                 <span className="text-sm text-muted-foreground">Saving...</span>
@@ -317,8 +369,7 @@ export function ExamClient({
             </h2>
 
             <div className="mt-6 space-y-3">
-              {(question.type === "MCQ" ||
-                question.type === "TRUE_FALSE") &&
+              {(question.type === "MCQ" || question.type === "TRUE_FALSE") &&
                 question.options.map((option) => (
                   <button
                     key={option.id}
@@ -340,20 +391,29 @@ export function ExamClient({
                   </button>
                 ))}
 
-              {(question.type === "SHORT_ANSWER" ||
-                question.type === "CODING") && (
-                <Textarea
-                  value={currentAnswer.answerText || ""}
-                  onChange={(e) =>
-                    saveAnswer({
-                      ...currentAnswer,
-                      answerText: e.target.value,
-                      selectedOptionId: null,
-                    })
-                  }
-                  className="min-h-[260px] font-mono"
-                  placeholder="Write your answer here..."
-                />
+              {isTheoryQuestion && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Write your answer below
+                  </label>
+
+                  <Textarea
+                    value={currentAnswer.answerText || ""}
+                    onChange={(event) =>
+                      saveTextAnswer({
+                        ...currentAnswer,
+                        answerText: event.target.value,
+                        selectedOptionId: null,
+                      })
+                    }
+                    className="min-h-[300px] resize-y rounded-2xl border-slate-300 bg-white p-4 text-base leading-7 text-slate-950"
+                    placeholder="Type your answer here..."
+                  />
+
+                  <p className="text-xs text-slate-500">
+                    Your answer is auto-saved while typing.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -361,7 +421,7 @@ export function ExamClient({
               <Button
                 variant="outline"
                 disabled={current === 0}
-                onClick={() => setCurrent((c) => c - 1)}
+                onClick={() => setCurrent((old) => old - 1)}
               >
                 Previous
               </Button>
@@ -383,7 +443,7 @@ export function ExamClient({
 
                 <Button
                   disabled={current === questions.length - 1}
-                  onClick={() => setCurrent((c) => c + 1)}
+                  onClick={() => setCurrent((old) => old + 1)}
                 >
                   Next
                 </Button>
@@ -415,38 +475,37 @@ export function ExamClient({
 
           {!allQuestionsAnswered && (
             <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-100">
-              Submit unlocks only after all {questions.length} questions are
-              attempted.
+              Submit unlocks only after all questions are attempted.
             </div>
           )}
 
           <div className="grid grid-cols-5 gap-2">
-            {questions.map((q, i) => {
-              const a = answers[q.id];
-              const answered = isAnswered(a);
+            {questions.map((item, index) => {
+              const answer = answers[item.id];
+              const answered = isAnswered(answer);
 
               return (
                 <button
-                  key={q.id}
-                  onClick={() => setCurrent(i)}
+                  key={item.id}
+                  onClick={() => setCurrent(index)}
                   className={cn(
                     "h-10 rounded-xl border border-white/20 text-sm",
-                    current === i && "bg-white text-slate-950",
+                    current === index && "bg-white text-slate-950",
                     answered ? "border-emerald-300" : "",
-                    a?.markedForReview ? "border-amber-300" : ""
+                    answer?.markedForReview ? "border-amber-300" : ""
                   )}
                 >
-                  {i + 1}
+                  {index + 1}
                 </button>
               );
             })}
           </div>
 
           <div className="mt-6 space-y-2 text-xs text-white/70">
-            <p>� Green border: answered</p>
-            <p>� Amber border: marked for review</p>
-            <p>� Manual submit requires all questions attempted.</p>
-            <p>� Auto-submit happens at timer end.</p>
+            <p>- Green border: answered</p>
+            <p>- Amber border: marked for review</p>
+            <p>- Theory questions show a writing box.</p>
+            <p>- Manual submit requires all questions attempted.</p>
           </div>
         </aside>
       </main>
